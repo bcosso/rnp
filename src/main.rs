@@ -20,19 +20,24 @@ async fn main() {
         let _ = stdout().flush();
         stdin().read_line(&mut command);
         print!("{}", command);
-        let args = command.split(" ").map(|s| s.to_string()).collect();
-        parse(args, command, &conn, peers[0].clone());
+        let args = command
+            .replace("\n", "")
+            .split(" ")
+            .map(|s| s.to_string())
+            .collect();
+        parse(args, command, &conn, peers[0].clone()).await;
     }
 }
 
-fn parse(
+async fn parse(
     tokens: Vec<String>,
     query: String,
     conn: &connection_manager::ConnManager,
     peer: configs::Peer,
 ) {
     if tokens[0] == "command" {
-        executeCommand(tokens, peer, conn);
+        print!("\nparse");
+        executeCommand(tokens, peer, conn).await;
     }
     //for token in tokens{
     //    print!("{}\n", token);
@@ -60,15 +65,16 @@ async fn executeSelect(
     let table = tokens[2].clone();
     let fieldkey = tokens[3].clone();
     let fieldvalue = tokens[4].clone();
-    let payload = "{{
-\"table\": \"{table}\",
-\"where_field\": \"{fieldkey}\",
-\"where_content\": \"{fieldvalue}\" 
-}}";
+    let payload = format!(
+        r#"{{"table": "{}", "where_field": "{}", "where_content": "{}" }}"#,
+        table, fieldkey, fieldvalue
+    );
+
+    print!("\n{}\n", payload);
 
     execute_in_cluster(
         "select_data_where_worker_equals_rsocket",
-        payload,
+        payload.as_str(),
         peer,
         conn,
     )
@@ -95,14 +101,14 @@ async fn execute_in_cluster(
     //let conn = connections.lock().unwrap();
     if let Some(cli) = conn.connections.get(&name_peer) {
         let method = "{\"method\":\"execute_something\"}";
-        let data =
-            format!("{{\"method\":\"/{name_peer}/{name_method}\",\"payload\":{data_json}\"}}");
+        let data = format!("{{\"method\":\"/{name_peer}/{name_method}\",\"payload\":{data_json}}}");
+        print!("{}", data);
         let req = Payload::builder()
             .set_data_utf8(&data)
             .set_metadata_utf8(method)
             .build();
         let res = cli.request_response(req).await?;
-        //println!("got: {:?}", res);
+        println!("got: {:?}", res);
         let result2 = res.unwrap();
         let result1 = result2.data_utf8().unwrap();
         Ok(String::from(result1))
